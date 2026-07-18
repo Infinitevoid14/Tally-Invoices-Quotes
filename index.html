@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tally — invoices &amp; quotes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2430;
+    --paper:#EEF0EA;
+    --paper-raised:#F8F9F5;
+    --stamp:#B23A2E;
+    --ledger-green:#2F6D4F;
+    --slate:#6B7280;
+    --rule:#D8D9D0;
+    --rule-dark:#C3C5BA;
+    --amber:#B8892B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Manrope',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  ::selection{background:var(--stamp);color:#fff;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea,select{font-family:inherit;}
+
+  /* ---- Layout shell ---- */
+  #app{max-width:1180px;margin:0 auto;padding:28px 24px 80px;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:20px;margin-bottom:22px;border-bottom:2px solid var(--ink);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .tally-mark{display:flex;align-items:flex-end;gap:3px;height:22px;}
+  .tally-mark .stroke{width:3px;height:20px;background:var(--ink);border-radius:1px;}
+  .tally-mark .slash{width:3px;height:26px;background:var(--stamp);transform:rotate(28deg);border-radius:1px;margin-left:-1px;}
+  .brand-name{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:20px;letter-spacing:0.01em;}
+  .brand-sub{font-size:11px;color:var(--slate);margin-top:1px;letter-spacing:0.04em;text-transform:uppercase;}
+
+  nav.tabs{display:flex;gap:2px;}
+  nav.tabs button{
+    background:transparent;border:none;padding:9px 16px;font-size:13.5px;font-weight:600;
+    color:var(--slate);border-radius:6px 6px 0 0;transition:all .15s;
+  }
+  nav.tabs button:hover{color:var(--ink);background:rgba(0,0,0,0.03);}
+  nav.tabs button.active{color:var(--ink);background:var(--paper-raised);box-shadow:0 -2px 0 var(--stamp) inset;}
+
+  .toolbar-actions{display:flex;gap:10px;align-items:center;}
+  .btn{
+    border:2px solid var(--ink);background:transparent;color:var(--ink);
+    padding:9px 16px;border-radius:5px;font-weight:700;font-size:13px;letter-spacing:0.01em;
+    transition:transform .1s, background .15s;
+  }
+  .btn:hover{background:var(--ink);color:var(--paper);}
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-primary:hover{background:var(--stamp);border-color:var(--stamp);color:#fff;}
+  .btn-ghost{border-color:transparent;padding:9px 10px;color:var(--slate);}
+  .btn-ghost:hover{background:rgba(0,0,0,0.05);color:var(--ink);}
+  .btn-danger{border-color:var(--stamp);color:var(--stamp);}
+  .btn-danger:hover{background:var(--stamp);color:#fff;}
+  .btn-sm{padding:6px 12px;font-size:12px;}
+
+  /* ---- Cards / panels ---- */
+  .panel{
+    background:var(--paper-raised);border:1.5px solid var(--rule-dark);border-radius:10px;
+    padding:22px;
+  }
+  .panel + .panel{margin-top:16px;}
+  .panel-title{font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--slate);margin:0 0 14px;}
+
+  /* ---- Ledger table (dashboard) ---- */
+  .ledger{width:100%;border-collapse:collapse;}
+  .ledger thead th{
+    text-align:left;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--slate);
+    padding:0 10px 10px;font-weight:700;
+  }
+  .ledger tbody tr{cursor:pointer;position:relative;}
+  .ledger tbody tr:hover td{background:rgba(178,58,46,0.05);}
+  .ledger tbody td{padding:14px 10px;border-top:1.5px dashed var(--rule-dark);font-size:14px;vertical-align:middle;}
+  .ledger tbody tr:first-child td{border-top:2px solid var(--ink);}
+  .doc-id{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;}
+  .doc-total{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14.5px;}
+  .doc-client{font-weight:600;}
+  .doc-meta{color:var(--slate);font-size:12px;margin-top:2px;}
+
+  .empty-state{text-align:center;padding:60px 20px;color:var(--slate);}
+  .empty-state .tally-mark{margin:0 auto 16px;transform:scale(1.6);justify-content:center;}
+  .empty-state h3{color:var(--ink);font-size:17px;margin:0 0 6px;}
+  .empty-state p{font-size:13.5px;margin:0 0 18px;}
+
+  /* ---- Stamps ---- */
+  .stamp-badge{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;
+    letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;border-radius:3px;
+    border:2px solid currentColor;transform:rotate(-4deg);
+  }
+  .stamp-draft{color:var(--slate);}
+  .stamp-sent{color:var(--amber);}
+  .stamp-paid{color:var(--ledger-green);}
+  .stamp-quote{color:#4A5FB5;}
+
+  /* ---- Forms ---- */
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:11.5px;font-weight:700;color:var(--slate);margin-bottom:6px;letter-spacing:0.03em;text-transform:uppercase;}
+  .field input, .field select, .field textarea{
+    width:100%;padding:9px 11px;border:1.5px solid var(--rule-dark);border-radius:6px;
+    font-size:14px;background:#fff;color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--stamp);outline-offset:1px;border-color:var(--stamp);}
+  .field textarea{resize:vertical;min-height:60px;}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+
+  /* ---- Editor layout ---- */
+  .editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  @media (max-width:900px){.editor-grid{grid-template-columns:1fr;}}
+
+  .line-items{margin-top:6px;}
+  .line-item-row{display:grid;grid-template-columns:1fr 70px 100px 90px 30px;gap:8px;margin-bottom:8px;align-items:center;}
+  .line-item-row input{padding:7px 9px;font-size:13px;}
+  .line-item-amt{font-family:'IBM Plex Mono',monospace;font-size:13px;text-align:right;padding-right:4px;color:var(--slate);}
+  .remove-line{background:none;border:none;color:var(--slate);font-size:16px;padding:4px;border-radius:4px;line-height:1;}
+  .remove-line:hover{color:var(--stamp);background:rgba(178,58,46,0.08);}
+  .add-line{margin-top:4px;}
+
+  .totals-block{margin-top:16px;padding-top:14px;border-top:1.5px dashed var(--rule-dark);}
+  .totals-row{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;}
+  .totals-row.grand{font-weight:800;font-size:17px;font-family:'IBM Plex Mono',monospace;border-top:2px solid var(--ink);margin-top:6px;padding-top:10px;}
+
+  /* ---- Preview (paper invoice) ---- */
+  .preview-wrap{position:sticky;top:20px;}
+  .preview{
+    background:#fff;border:1.5px solid var(--rule-dark);border-radius:8px;padding:36px 32px;
+    box-shadow:0 6px 0 -2px var(--rule), 0 14px 24px rgba(27,36,48,0.08);
+    position:relative;overflow:hidden;
+  }
+  .preview::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:6px;
+    background-image:repeating-linear-gradient(90deg, var(--paper) 0 8px, transparent 8px 16px);
+  }
+  .preview-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px;}
+  .preview-doctype{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;letter-spacing:0.03em;}
+  .preview-docid{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--slate);margin-top:2px;}
+  .preview-stamp-slot{transform:rotate(-8deg);}
+  .preview-from-to{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;font-size:13px;}
+  .preview-label{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--slate);font-weight:700;margin-bottom:5px;}
+  .preview-dates{display:flex;gap:24px;font-size:12.5px;color:var(--slate);margin-bottom:22px;}
+  .preview-dates .mono{color:var(--ink);}
+  .preview table{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  .preview thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate);padding-bottom:8px;border-bottom:2px solid var(--ink);}
+  .preview thead th:last-child, .preview td.amt{text-align:right;}
+  .preview tbody td{padding:9px 0;font-size:13px;border-bottom:1px dashed var(--rule-dark);}
+  .preview .amt{font-family:'IBM Plex Mono',monospace;}
+  .preview-totals{margin-left:auto;width:230px;margin-top:10px;}
+  .preview-totals .totals-row{font-size:13px;}
+  .preview-notes{margin-top:24px;font-size:12px;color:var(--slate);border-top:1.5px dashed var(--rule-dark);padding-top:14px;white-space:pre-wrap;}
+
+  /* ---- Clients list ---- */
+  .client-card{display:flex;justify-content:space-between;align-items:center;padding:14px 4px;border-top:1.5px dashed var(--rule-dark);}
+  .client-card:first-child{border-top:2px solid var(--ink);}
+  .client-name{font-weight:700;font-size:14px;}
+  .client-meta{color:var(--slate);font-size:12.5px;margin-top:2px;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(27,36,48,0.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--paper-raised);border-radius:12px;padding:26px;max-width:440px;width:100%;border:1.5px solid var(--rule-dark);}
+  .modal h3{margin:0 0 16px;font-family:'IBM Plex Mono',monospace;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:var(--paper);padding:10px 20px;border-radius:6px;
+    font-size:13px;font-weight:600;z-index:100;box-shadow:0 8px 20px rgba(0,0,0,0.2);
+    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  select.status-select{width:auto;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;text-transform:uppercase;padding:5px 8px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{position:absolute;top:0;left:0;width:100%;padding:0;margin:0;}
+    .preview{box-shadow:none;border:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- state ---------------- */
+let state = {
+  view: 'dashboard',
+  profile: { name:'', email:'', address:'' },
+  clients: [],
+  documents: [],
+  editingId: null,
+  modal: null,
+};
+
+const uid = () => Math.random().toString(36).slice(2,9);
+const money = n => (Math.round((n||0)*100)/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayISO = () => new Date().toISOString().slice(0,10);
+const addDays = (d,n) => { const dt=new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '—';
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- storage ---------------- */
+async function loadAll(){
+  try{
+    const p = await window.storage.get('profile');
+    if(p) state.profile = JSON.parse(p.value);
+  }catch(e){}
+  try{
+    const c = await window.storage.get('clients');
+    if(c) state.clients = JSON.parse(c.value);
+  }catch(e){}
+  try{
+    const d = await window.storage.get('documents');
+    if(d) state.documents = JSON.parse(d.value);
+  }catch(e){}
+  render();
+}
+async function saveProfile(){ try{ await window.storage.set('profile', JSON.stringify(state.profile)); }catch(e){ showToast('Could not save'); } }
+async function saveClients(){ try{ await window.storage.set('clients', JSON.stringify(state.clients)); }catch(e){ showToast('Could not save'); } }
+async function saveDocuments(){ try{ await window.storage.set('documents', JSON.stringify(state.documents)); }catch(e){ showToast('Could not save'); } }
+
+/* ---------------- helpers ---------------- */
+function nextDocNumber(type){
+  const prefix = type === 'quote' ? 'QTE' : 'INV';
+  const count = state.documents.filter(d=>d.type===type).length + 1;
+  return prefix + '-' + String(count).padStart(4,'0');
+}
+function calcTotals(doc){
+  const subtotal = doc.items.reduce((s,i)=> s + (Number(i.qty)||0)*(Number(i.rate)||0), 0);
+  const tax = subtotal * ((Number(doc.taxRate)||0)/100);
+  return { subtotal, tax, total: subtotal + tax };
+}
+function blankDoc(type){
+  return {
+    id: uid(),
+    type: type,
+    docNumber: nextDocNumber(type),
+    clientId: state.clients[0] ? state.clients[0].id : null,
+    issueDate: todayISO(),
+    dueDate: addDays(todayISO(), 14),
+    items: [{ id:uid(), desc:'', qty:1, rate:0 }],
+    taxRate: 0,
+    notes: 'Thanks for your business.',
+    status: 'draft',
+    createdAt: Date.now(),
+  };
+}
+
+/* ---------------- render root ---------------- */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = topbarHTML() + viewHTML();
+  attachHandlers();
+}
+
+function tallyMarkSVG(){
+  return `<div class="tally-mark"><div class="stroke"></div><div class="stroke"></div><div class="stroke"></div><div class="stroke"></div><div class="slash"></div></div>`;
+}
+
+function topbarHTML(){
+  const tabs = [['dashboard','Ledger'],['clients','Clients'],['settings','Settings']];
+  return `
+  <div class="topbar">
+    <div class="brand">
+      ${tallyMarkSVG()}
+      <div>
+        <div class="brand-name">Tally</div>
+        <div class="brand-sub">Invoices &amp; quotes</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      ${tabs.map(([k,label])=>`<button data-tab="${k}" class="${state.view===k || (state.view==='editor'&&k==='dashboard')?'active':''}">${label}</button>`).join('')}
+    </nav>
+    <div class="toolbar-actions">
+      <button class="btn btn-sm" data-action="new-quote">+ Quote</button>
+      <button class="btn btn-primary btn-sm" data-action="new-invoice">+ Invoice</button>
+    </div>
+  </div>`;
+}
+
+function viewHTML(){
+  if(state.view === 'editor') return editorHTML();
+  if(state.view === 'clients') return clientsHTML();
+  if(state.view === 'settings') return settingsHTML();
+  return dashboardHTML();
+}
+
+/* ---------------- dashboard ---------------- */
+function dashboardHTML(){
+  const docs = [...state.documents].sort((a,b)=>b.createdAt-a.createdAt);
+  if(docs.length === 0){
+    return `
+    <div class="panel">
+      <div class="empty-state">
+        ${tallyMarkSVG()}
+        <h3>No invoices yet</h3>
+        <p>Every job starts with a mark on the ledger. Create your first invoice or quote.</p>
+        <button class="btn btn-primary" data-action="new-invoice">+ New invoice</button>
+      </div>
+    </div>`;
+  }
+  return `
+  <div class="panel">
+    <div class="panel-title">Ledger — ${docs.length} document${docs.length===1?'':'s'}</div>
+    <table class="ledger">
+      <thead><tr><th>Client</th><th>Type</th><th>Issued</th><th>Status</th><th style="text-align:right;">Total</th></tr></thead>
+      <tbody>
+        ${docs.map(d=>{
+          const client = state.clients.find(c=>c.id===d.clientId);
+          const t = calcTotals(d);
+          return `<tr data-open="${d.id}">
+            <td>
+              <div class="doc-client">${escapeHTML(client ? client.name : 'No client')}</div>
+              <div class="doc-meta doc-id">${d.docNumber}</div>
+            </td>
+            <td><span class="stamp-badge ${d.type==='quote'?'stamp-quote':'stamp-draft'}" style="transform:none;border:none;padding:0;color:${d.type==='quote'?'#4A5FB5':'var(--slate)'};">${d.type==='quote'?'Quote':'Invoice'}</span></td>
+            <td class="doc-meta">${fmtDate(d.issueDate)}</td>
+            <td><span class="stamp-badge stamp-${d.status}">${d.status}</span></td>
+            <td class="doc-total" style="text-align:right;">$${money(t.total)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ---------------- clients ---------------- */
+function clientsHTML(){
+  return `
+  <div class="panel">
+    <div class="panel-title">Clients — ${state.clients.length}</div>
+    ${state.clients.length===0 ? `
+      <div class="empty-state">
+        <h3>No clients yet</h3>
+        <p>Add a client so you can bill them.</p>
+        <button class="btn btn-primary" data-action="add-client">+ Add client</button>
+      </div>
+    ` : `
+      ${state.clients.map(c=>`
+        <div class="client-card">
+          <div>
+            <div class="client-name">${escapeHTML(c.name)}</div>
+            <div class="client-meta">${escapeHTML(c.email||'')}${c.address ? ' · '+escapeHTML(c.address) : ''}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
+            <button class="btn btn-ghost btn-sm" data-del-client="${c.id}">Remove</button>
+          </div>
+        </div>
+      `).join('')}
+      <div style="margin-top:16px;"><button class="btn btn-sm" data-action="add-client">+ Add client</button></div>
+    `}
+  </div>`;
+}
+
+/* ---------------- settings ---------------- */
+function settingsHTML(){
+  const p = state.profile;
+  return `
+  <div class="panel" style="max-width:520px;">
+    <div class="panel-title">Your business details</div>
+    <div class="field"><label>Business or your name</label><input id="s-name" value="${escapeAttr(p.name)}" placeholder="Jane Freelancer"></div>
+    <div class="field"><label>Email</label><input id="s-email" value="${escapeAttr(p.email)}" placeholder="jane@studio.com"></div>
+    <div class="field"><label>Address</label><textarea id="s-address" placeholder="12 River Rd, Lagos">${escapeHTML(p.address)}</textarea></div>
+    <button class="btn btn-primary" data-action="save-settings">Save details</button>
+  </div>`;
+}
+
+/* ---------------- editor ---------------- */
+function editorHTML(){
+  const doc = state.documents.find(d=>d.id===state.editingId);
+  if(!doc) return dashboardHTML();
+  const client = state.clients.find(c=>c.id===doc.clientId);
+  const t = calcTotals(doc);
+  const typeLabel = doc.type === 'quote' ? 'Quote' : 'Invoice';
+
+  return `
+  <div style="margin-bottom:14px;">
+    <button class="btn btn-ghost btn-sm" data-action="back-dashboard">← Back to ledger</button>
+  </div>
+  <div class="editor-grid">
+    <div>
+      <div class="panel">
+        <div class="panel-title">${typeLabel} details</div>
+        <div class="row-2">
+          <div class="field">
+            <label>Client</label>
+            <select id="e-client">
+              <option value="" ${!doc.clientId?'selected':''}>Select a client…</option>
+              ${state.clients.map(c=>`<option value="${c.id}" ${doc.clientId===c.id?'selected':''}>${escapeHTML(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="e-status" class="status-select">
+              <option value="draft" ${doc.status==='draft'?'selected':''}>Draft</option>
+              <option value="sent" ${doc.status==='sent'?'selected':''}>Sent</option>
+              <option value="paid" ${doc.status==='paid'?'selected':''}>Paid</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-2">
+          <div class="field"><label>Issue date</label><input type="date" id="e-issue" value="${doc.issueDate}"></div>
+          <div class="field"><label>Due date</label><input type="date" id="e-due" value="${doc.dueDate}"></div>
+        </div>
+
+        <div class="field" style="margin-top:18px;">
+          <label>Line items</label>
+          <div class="line-items">
+            ${doc.items.map((it,idx)=>`
+              <div class="line-item-row" data-item="${it.id}">
+                <input placeholder="Description" value="${escapeAttr(it.desc)}" data-field="desc">
+                <input placeholder="Qty" type="number" min="0" step="1" value="${it.qty}" data-field="qty">
+                <input placeholder="Rate" type="number" min="0" step="0.01" value="${it.rate}" data-field="rate">
+                <div class="line-item-amt">$${money((Number(it.qty)||0)*(Number(it.rate)||0))}</div>
+                <button class="remove-line" data-remove-item="${it.id}" title="Remove line">✕</button>
+              </div>
+            `).join('')}
+          </div>
+          <button class="btn btn-ghost btn-sm add-line" data-action="add-line">+ Add line</button>
+        </div>
+
+        <div class="field"><label>Tax rate (%)</label><input type="number" id="e-tax" min="0" step="0.1" value="${doc.taxRate}" style="max-width:120px;"></div>
+        <div class="field"><label>Notes</label><textarea id="e-notes">${escapeHTML(doc.notes)}</textarea></div>
+
+        <div class="totals-block">
+          <div class="totals-row"><span>Subtotal</span><span class="mono">$${money(t.subtotal)}</span></div>
+          <div class="totals-row"><span>Tax</span><span class="mono">$${money(t.tax)}</span></div>
+          <div class="totals-row grand"><span>Total</span><span>$${money(t.total)}</span></div>
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:10px;justify-content:space-between;">
+          <button class="btn btn-danger btn-sm" data-action="delete-doc">Delete</button>
+          <button class="btn btn-primary" data-action="print-doc">Export as PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div id="print-area">
+      <div class="preview">
+        <div class="preview-head">
+          <div>
+            <div class="preview-doctype">${typeLabel.toUpperCase()}</div>
+            <div class="preview-docid">${doc.docNumber}</div>
+          </div>
+          <div class="preview-stamp-slot"><span class="stamp-badge stamp-${doc.status}">${doc.status}</span></div>
+        </div>
+        <div class="preview-from-to">
+          <div>
+            <div class="preview-label">From</div>
+            <div>${escapeHTML(state.profile.name||'Your business name')}</div>
+            <div style="color:var(--slate);">${escapeHTML(state.profile.email||'')}</div>
+            <div style="color:var(--slate);white-space:pre-wrap;">${escapeHTML(state.profile.address||'')}</div>
+          </div>
+          <div>
+            <div class="preview-label">Bill to</div>
+            <div>${escapeHTML(client ? client.name : '—')}</div>
+            <div style="color:var(--slate);">${escapeHTML(client ? (client.email||'') : '')}</div>
+            <div style="color:var(--slate);white-space:pre-wrap;">${escapeHTML(client ? (client.address||'') : '')}</div>
+          </div>
+        </div>
+        <div class="preview-dates">
+          <div>Issued <span class="mono">${fmtDate(doc.issueDate)}</span></div>
+          <div>Due <span class="mono">${fmtDate(doc.dueDate)}</span></div>
+        </div>
+        <table>
+          <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+          <tbody>
+            ${doc.items.filter(i=>i.desc || i.qty || i.rate).map(i=>`
+              <tr><td>${escapeHTML(i.desc||'—')}</td><td>${i.qty}</td><td class="amt">$${money(i.rate)}</td><td class="amt">$${money((Number(i.qty)||0)*(Number(i.rate)||0))}</td></tr>
+            `).join('') || '<tr><td colspan="4" style="color:var(--slate);">No line items yet</td></tr>'}
+          </tbody>
+        </table>
+        <div class="preview-totals">
+          <div class="totals-row"><span>Subtotal</span><span class="mono">$${money(t.subtotal)}</span></div>
+          ${doc.taxRate ? `<div class="totals-row"><span>Tax (${doc.taxRate}%)</span><span class="mono">$${money(t.tax)}</span></div>` : ''}
+          <div class="totals-row grand"><span>Total</span><span>$${money(t.total)}</span></div>
+        </div>
+        ${doc.notes ? `<div class="preview-notes">${escapeHTML(doc.notes)}</div>` : ''}
+      </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- escaping ---------------- */
+function escapeHTML(s){ return (s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------------- events ---------------- */
+function attachHandlers(){
+  const app = document.getElementById('app');
+
+  app.querySelectorAll('[data-tab]').forEach(btn=>{
+    btn.onclick = ()=>{ state.view = btn.dataset.tab; render(); };
+  });
+
+  const newDoc = (type)=>{
+    if(state.clients.length===0){ openModal('need-client'); return; }
+    const doc = blankDoc(type);
+    state.documents.push(doc);
+    state.editingId = doc.id;
+    state.view = 'editor';
+    saveDocuments();
+    render();
+  };
+  const newInv = app.querySelector('[data-action="new-invoice"]');
+  if(newInv) newInv.onclick = ()=>newDoc('invoice');
+  const newQte = app.querySelector('[data-action="new-quote"]');
+  if(newQte) newQte.onclick = ()=>newDoc('quote');
+
+  app.querySelectorAll('[data-open]').forEach(row=>{
+    row.onclick = ()=>{ state.editingId = row.dataset.open; state.view='editor'; render(); };
+  });
+
+  const backBtn = app.querySelector('[data-action="back-dashboard"]');
+  if(backBtn) backBtn.onclick = ()=>{ state.view='dashboard'; state.editingId=null; render(); };
+
+  /* clients */
+  const addClientBtn = app.querySelector('[data-action="add-client"]');
+  if(addClientBtn) addClientBtn.onclick = ()=>openModal('client');
+  app.querySelectorAll('[data-edit-client]').forEach(b=>{
+    b.onclick = ()=>openModal('client', state.clients.find(c=>c.id===b.dataset.editClient));
+  });
+  app.querySelectorAll('[data-del-client]').forEach(b=>{
+    b.onclick = ()=>{
+      state.clients = state.clients.filter(c=>c.id!==b.dataset.delClient);
+      saveClients(); render(); showToast('Client removed');
+    };
+  });
+
+  /* settings */
+  const saveSettingsBtn = app.querySelector('[data-action="save-settings"]');
+  if(saveSettingsBtn) saveSettingsBtn.onclick = ()=>{
+    state.profile.name = document.getElementById('s-name').value;
+    state.profile.email = document.getElementById('s-email').value;
+    state.profile.address = document.getElementById('s-address').value;
+    saveProfile(); showToast('Business details saved');
+  };
+
+  /* editor */
+  const eClient = app.querySelector('#e-client');
+  if(eClient) eClient.onchange = ()=>{ updateDoc({clientId: eClient.value || null}); };
+  const eStatus = app.querySelector('#e-status');
+  if(eStatus) eStatus.onchange = ()=>{ updateDoc({status: eStatus.value}); };
+  const eIssue = app.querySelector('#e-issue');
+  if(eIssue) eIssue.onchange = ()=>{ updateDoc({issueDate: eIssue.value}); };
+  const eDue = app.querySelector('#e-due');
+  if(eDue) eDue.onchange = ()=>{ updateDoc({dueDate: eDue.value}); };
+  const eTax = app.querySelector('#e-tax');
+  if(eTax) eTax.oninput = ()=>{ updateDoc({taxRate: eTax.value}); };
+  const eNotes = app.querySelector('#e-notes');
+  if(eNotes) eNotes.oninput = ()=>{ updateDoc({notes: eNotes.value}); };
+
+  app.querySelectorAll('.line-item-row').forEach(rowEl=>{
+    const itemId = rowEl.dataset.item;
+    rowEl.querySelectorAll('input[data-field]').forEach(inp=>{
+      inp.oninput = ()=>{
+        const doc = state.documents.find(d=>d.id===state.editingId);
+        const item = doc.items.find(i=>i.id===itemId);
+        item[inp.dataset.field] = inp.value;
+        saveDocuments();
+        rerenderEditorPreserveFocus(inp);
+      };
+    });
+  });
+  app.querySelectorAll('[data-remove-item]').forEach(b=>{
+    b.onclick = ()=>{
+      const doc = state.documents.find(d=>d.id===state.editingId);
+      doc.items = doc.items.filter(i=>i.id!==b.dataset.removeItem);
+      saveDocuments(); render();
+    };
+  });
+  const addLineBtn = app.querySelector('[data-action="add-line"]');
+  if(addLineBtn) addLineBtn.onclick = ()=>{
+    const doc = state.documents.find(d=>d.id===state.editingId);
+    doc.items.push({id:uid(), desc:'', qty:1, rate:0});
+    saveDocuments(); render();
+  };
+  const delDocBtn = app.querySelector('[data-action="delete-doc"]');
+  if(delDocBtn) delDocBtn.onclick = ()=>{
+    state.documents = state.documents.filter(d=>d.id!==state.editingId);
+    state.editingId = null; state.view = 'dashboard';
+    saveDocuments(); render(); showToast('Deleted');
+  };
+  const printBtn = app.querySelector('[data-action="print-doc"]');
+  if(printBtn) printBtn.onclick = ()=> printDoc();
+}
+
+function printDoc(){
+  const doc = state.documents.find(d=>d.id===state.editingId);
+  const previewHTML = document.getElementById('print-area').innerHTML;
+  const styleText = document.querySelector('style').textContent;
+  const w = window.open('', '_blank');
+  if(!w){
+    showToast('Allow pop-ups to export as PDF, then try again');
+    return;
+  }
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>${doc ? doc.docNumber : 'Document'}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>${styleText}
+      html,body{background:#fff;}
+      body{padding:32px;}
+      .preview{box-shadow:none;border:none;}
+    </style>
+    </head><body>${previewHTML}</body></html>`);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); };
+  // fallback in case onload doesn't fire reliably with document.write
+  setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 600);
+}
+
+function updateDoc(patch){
+  const doc = state.documents.find(d=>d.id===state.editingId);
+  Object.assign(doc, patch);
+  saveDocuments();
+  render();
+}
+
+function rerenderEditorPreserveFocus(activeInput){
+  const itemId = activeInput.closest('.line-item-row').dataset.item;
+  const field = activeInput.dataset.field;
+  const selStart = activeInput.selectionStart, selEnd = activeInput.selectionEnd;
+  render();
+  const newInput = document.querySelector(`.line-item-row[data-item="${itemId}"] input[data-field="${field}"]`);
+  if(newInput){ newInput.focus(); try{ newInput.setSelectionRange(selStart, selEnd); }catch(e){} }
+}
+
+/* ---------------- modals ---------------- */
+function openModal(kind, payload){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'modal-backdrop';
+
+  if(kind === 'need-client'){
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>Add a client first</h3>
+        <p style="font-size:13.5px;color:var(--slate);">You'll need at least one client before creating a document.</p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost btn-sm" id="modal-cancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="modal-goto-client">Add client</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    document.getElementById('modal-cancel').onclick = closeModal;
+    document.getElementById('modal-goto-client').onclick = ()=>{ closeModal(); state.view='clients'; render(); openModal('client'); };
+    backdrop.onclick = (e)=>{ if(e.target===backdrop) closeModal(); };
+    return;
+  }
+
+  if(kind === 'client'){
+    const editing = !!payload;
+    const c = payload || {id:null, name:'', email:'', address:''};
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>${editing?'Edit client':'Add client'}</h3>
+        <div class="field"><label>Name</label><input id="m-name" value="${escapeAttr(c.name)}" placeholder="Acme Studio"></div>
+        <div class="field"><label>Email</label><input id="m-email" value="${escapeAttr(c.email)}" placeholder="hello@acme.com"></div>
+        <div class="field"><label>Address</label><textarea id="m-address" placeholder="Street, city">${escapeHTML(c.address)}</textarea></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost btn-sm" id="modal-cancel">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="modal-save">${editing?'Save changes':'Add client'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    document.getElementById('modal-cancel').onclick = closeModal;
+    document.getElementById('modal-save').onclick = ()=>{
+      const name = document.getElementById('m-name').value.trim();
+      if(!name){ showToast('Client needs a name'); return; }
+      const email = document.getElementById('m-email').value.trim();
+      const address = document.getElementById('m-address').value.trim();
+      if(editing){
+        Object.assign(c, {name, email, address});
+      } else {
+        state.clients.push({id:uid(), name, email, address});
+      }
+      saveClients(); closeModal(); render(); showToast(editing?'Client updated':'Client added');
+    };
+    backdrop.onclick = (e)=>{ if(e.target===backdrop) closeModal(); };
+    return;
+  }
+}
+function closeModal(){
+  const el = document.getElementById('modal-backdrop');
+  if(el) el.remove();
+}
+
+/* ---------------- init ---------------- */
+loadAll();
+</script>
+</body>
+</html>
